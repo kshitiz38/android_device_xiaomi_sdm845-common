@@ -23,13 +23,11 @@ import android.hardware.SensorEvent;
 import android.hardware.SensorEventListener;
 import android.hardware.SensorManager;
 import android.os.FileUtils;
+import android.os.Handler;
 import android.os.SystemProperties;
 import android.util.Log;
 
 import java.io.IOException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
 
 public class ProximitySensor implements SensorEventListener {
     private static final String TAG = "PocketModeProximity";
@@ -43,24 +41,24 @@ public class ProximitySensor implements SensorEventListener {
     private final String mFPProximityNode;
     private final String mVendorName;
 
-    private ExecutorService mExecutorService;
+    private Handler mHandler;
     private Context mContext;
     private Sensor mSensor;
     private SensorManager mSensorManager;
 
-    public ProximitySensor(Context context) {
+    public ProximitySensor(Context context, Handler handler) {
         mContext = context;
+        mHandler = handler;
         mSensorManager = mContext.getSystemService(SensorManager.class);
         mSensor = mSensorManager.getDefaultSensor(Sensor.TYPE_PROXIMITY);
-        mExecutorService = Executors.newSingleThreadExecutor();
 
         mVendorName = SystemProperties.get("persist.vendor.sys.fp.vendor", "");
         mFPProximityNode = mVendorName.equals("fpc") ? FPC_PROX_NODE : GOODIX_PROX_NODE;
         if (DEBUG) Log.d(TAG, "Using proximity state from " + mFPProximityNode);
     }
 
-    private Future<?> submit(Runnable runnable) {
-        return mExecutorService.submit(runnable);
+    private boolean submit(Runnable runnable) {
+        return mHandler.post(runnable);
     }
 
     @Override
@@ -85,7 +83,7 @@ public class ProximitySensor implements SensorEventListener {
         if (DEBUG) Log.d(TAG, "Enabling");
         submit(() -> {
             mSensorManager.registerListener(this, mSensor,
-                    SensorManager.SENSOR_DELAY_NORMAL);
+                    SensorManager.SENSOR_DELAY_NORMAL, mHandler);
         });
     }
 
@@ -93,8 +91,7 @@ public class ProximitySensor implements SensorEventListener {
         if (DEBUG) Log.d(TAG, "Disabling");
         submit(() -> {
             mSensorManager.unregisterListener(this, mSensor);
+            setFPProximityState(/* isNear */ false);
         });
-        // Ensure FP is left enabled
-        setFPProximityState(/* isNear */ false);
     }
 }

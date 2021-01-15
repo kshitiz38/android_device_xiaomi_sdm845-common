@@ -23,6 +23,9 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.os.IBinder;
+import android.os.Process;
+import android.os.Handler;
+import android.os.HandlerThread;
 import android.util.Log;
 
 public class PocketModeService extends Service {
@@ -30,11 +33,17 @@ public class PocketModeService extends Service {
     private static final boolean DEBUG = false;
 
     private ProximitySensor mProximitySensor;
+    private HandlerThread mSensorThread;
+    private Handler mSensorHandler;
 
     @Override
     public void onCreate() {
         if (DEBUG) Log.d(TAG, "Creating service");
-        mProximitySensor = new ProximitySensor(this);
+        mSensorThread = new HandlerThread(TAG, Process.THREAD_PRIORITY_BACKGROUND);
+        mSensorThread.start();
+        mSensorHandler = new Handler(mSensorThread.getLooper());
+
+        mProximitySensor = new ProximitySensor(this, mSensorHandler);
 
         IntentFilter screenStateFilter = new IntentFilter();
         screenStateFilter.addAction(Intent.ACTION_SCREEN_OFF);
@@ -53,6 +62,7 @@ public class PocketModeService extends Service {
         if (DEBUG) Log.d(TAG, "Destroying service");
         this.unregisterReceiver(mScreenStateReceiver);
         mProximitySensor.disable();
+        mSensorThread.quit();
         super.onDestroy();
     }
 
